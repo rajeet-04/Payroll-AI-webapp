@@ -4,7 +4,7 @@
 
 # Accounting System
 
-**Version:** 1.1 **Date:** October 23, 2025
+**Version:** 1.1 **Date:** 2025-10-23
 
 ## 1. Project Overview & Goals
 
@@ -26,29 +26,29 @@ assistant.
 ● For the System: Ensure data security, accuracy, and scalability using a modern,
 decoupled technology stack.
 ```
+
 ## 2. Technology Stack
 
-As requested, the project will be built on the following stack:
+As requested, the project will be built on the following stack (adjusted for free-tier constraints):
 ● **Frontend: React (Next.js)**
 ○ _Why:_ Provides a high-performance, server-rendered application, excellent
 developer experience, and a robust framework for building a secure, multi-page
 user interface.
-● **Backend (BaaS): Supabase**
-○ _Why:_ Acts as the core backend, providing a Postgres database, user authentication
-(Auth), file storage (Storage), and Row Level Security (RLS) out of the box. This
-accelerates development significantly.
-● **Backend (AI Service): Python (FastAPI)**
-○ _Why:_ A dedicated microservice to handle all AI-related logic. This securely
-manages API keys, pre-processes data for AI prompts, and interacts with the
-Gemini API. (FastAPI is recommended for its high performance and ease of use).
+● **Backend (BaaS): Supabase (Postgres + Auth)**
+○ _Why:_ Acts as the core backend, providing a Postgres database and user authentication
+(Auth). On free tier, Supabase Storage may not be available or advisable — see Storage notes.
+● **Backend (AI + File Service): Python (FastAPI) hosted on Render**
+○ _Why:_ A dedicated microservice to handle all AI-related logic, safely manage API keys,
+pre-process data for AI prompts, and serve signed PDF URLs. Render is recommended for
+FastAPI on free-tier friendly hosting. Vercel is appropriate for Next.js frontend only.
 ● **AI Model: Gemini API**
 ○ _Why:_ Provides the core intelligence for the chatbot, data analysis, and anomaly
-detection features.
-
+detection.
 
 ## 3. System Architecture
 
-The system will use a decoupled, "Headless BaaS + AI Microservice" architecture.
+The system will use a decoupled, "Headless BaaS + AI Microservice" architecture (with
+storage adapted to free-tier constraints):
 
 1. **User (Admin/Employee):** Interacts with the **Next.js Frontend**.
 2. **Next.js Frontend:**
@@ -58,105 +58,118 @@ The system will use a decoupled, "Headless BaaS + AI Microservice" architecture.
     ○ Communicates with the **Python AI Backend** for all intelligent tasks, passing an
        optional context object (e.g., POST /api/v1/chat).
 3. **Supabase (BaaS):**
-    ○ The "source of truth" for all data.
+    ○ The "source of truth" for all structured data.
     ○ **Auth:** Manages user login, registration, and sessions (JWTs).
-    ○ **Postgres DB:** Stores all core data (employees, payslips, leave, etc.).
-    ○ **Storage:** Stores generated PDF payslips, employee contracts, etc.
+    ○ **Postgres DB:** Stores core data (employees, payslips, leave, etc.). On the free tier
+      we will use Postgres to store small binary blobs (payslips) if object storage is
+      unavailable. (See Storage section for constraints and recommendations.)
 4. **Python AI Backend (FastAPI):**
-    ○ A separate, hosted service (e.g., on Vercel, Railway, or Render).
+    ○ A separate, hosted service on Render.
     ○ Receives requests from the Next.js frontend (e.g., "Explain my tax deduction").
-    ○ _Securely_ queries **Supabase** (using supabase-py and a service key) to get
-       additional context if needed.
-    ○ Constructs a detailed prompt with this context and sends it to the **Gemini API**.
+    ○ Validates the incoming Supabase JWT (short-lived) and verifies the user's role and
+      company scope before performing any service_role queries.
+    ○ Uses a SUPABASE_SERVICE_KEY only when necessary and only after additional server-side
+      authorization checks. All service_role use is audited and logged.
+    ○ Constructs a detailed prompt with sanitized context and sends it to the **Gemini API**.
     ○ Returns the clean, formatted AI response to the Next.js frontend.
-This architecture is highly secure:
+
+This architecture is secure if implemented correctly:
 ● Client-side API keys (Gemini, Supabase service_role) are never exposed.
-● The AI service is the single, secure gateway to Gemini.
-● Supabase RLS provides database-level security for all direct data access.
+● The AI service is the single, secure gateway to Gemini, and it enforces authorization
+  checks before using elevated DB privileges.
+● Supabase RLS provides DB-level security for all direct data access from clients.
 
 ## 4. User Roles & Permissions
 
 1. **admin (Payroll Administrator):**
-    ○ Full CRUD (Create, Read, Update, Delete) on employees.
-    ○ Can set _employee-specific_ allowance/deduction overrides (e.g., TA/DA).
+    ○ Full CRUD on employees within their company.
+    ○ Can set _employee-specific_ allowance/deduction overrides.
     ○ Full access to company settings.
     ○ Can configure salary_structures.
-    ○ Can run new payrolls and view all historical payslips.
-    ○ Can define leave_periods and grant employee_leave_balances.
+    ○ Can run payrolls and view historical payslips.
+    ○ Can manage leave_periods and employee_leave_balances.
     ○ Can approve/deny leave_requests.
 2. **employee (Standard User):**
     ○ Read-only access to their _own_ profile.
-    ○ Update access to _limited_ fields on their own profile (e.g., address, bank info).
+    ○ Update access to limited fields on their profile (e.g., address, bank info — bank details are
+      only sent to AI after redaction/consent).
     ○ Read-only access to _their own_ payslips.
-    ○ Can submit leave_requests and view their _own_ employee_leave_balances.
+    ○ Can submit leave_requests and view their leave balances.
 
 ## 5. Backend Plan: Supabase (The Core)
 
-
 ### 5.1. Database Schema (Core Tables)
+
+Key notes applied:
+- Use explicit types (numeric/decimal) for amounts and decimals for percentages (e.g., 0.10 for 10%).
+- Keep payroll calculations deterministic: define the order, rounding behavior, and signed conventions
+  (positive numbers for amounts; components have a "kind" field: 'allowance' or 'deduction').
 
 ```
 ● profiles: (Links to auth.users)
 ○ id (uuid, primary key, references auth.users.id)
-○ email (text)
+○ auth_user_id (text) -- optional alias to auth.users
+○ email (text)  -- optional, canonical source is auth.users.email
 ○ full_name (text)
-○ role (text, e.g., 'admin' or 'employee')
+○ role (role_enum, e.g., 'admin' or 'employee')
 ○ company_id (uuid, foreign key to companies)
-● companies: (For future multi-tenancy)
+● companies:
 ○ id (uuid, primary key)
 ○ name (text)
-○ pay_cycle (text, e.g., 'monthly', 'bi-weekly')
+○ pay_cycle (pay_cycle_enum, e.g., 'monthly', 'bi-weekly')
 ● employees: (Main employee data)
-○ id (uuid, primary key, default gen_random_uuid())
+○ id (uuid, primary key, default gen_random_uuid())  <-- CANONICAL ID FOR STORAGE & FILES
 ○ profile_id (uuid, foreign key to profiles)
 ○ company_id (uuid, foreign key to companies)
 ○ designation (text)
 ○ join_date (date)
 ○ salary_structure_id (uuid, foreign key to salary_structures)
-○ allowances_override (jsonb, New: For employee-specific TA/DA, e.g., {"TA": 150,
-"DA": 100} )
-○ deductions_override (jsonb, New: For employee-specific items )
-● salary_structures: (The template for an employee's pay)
+○ allowances_override (jsonb, e.g., {"TA": 150, "DA": 100})
+○ deductions_override (jsonb)
+○ external_identifier (text) -- optional for payroll provider mapping
+● salary_structures:
 ○ id (uuid, primary key)
 ○ company_id (uuid, foreign key to companies)
 ○ base_pay (numeric)
-○ allowances (jsonb, Standard allowances, e.g., {"housing": 500} )
+○ allowances (jsonb, e.g., {"housing": 500})
 ○ deductions_fixed (jsonb, e.g., {"insurance": 50})
-○ deductions_percent (jsonb, e.g., {"tax_bracket": "10%", "provident_fund": 5})
-● payrolls: (A record of each payroll run )
+○ deductions_percent (jsonb, e.g., {"tax": 0.10, "provident_fund": 0.05})
+○ tax_bracket_id (uuid) -- optional reference to tax tables when needed
+● payrolls:
 ○ id (uuid, primary key)
 ○ company_id (uuid, foreign key to companies)
 ○ pay_period_start (date)
 ○ pay_period_end (date)
-○ status (text, e.g., 'draft', 'processed', 'paid')
-● payslips: (The final result for each employee in a payroll run)
+○ status (payroll_status_enum, e.g., 'draft','processed','paid')
+○ created_by (uuid references profiles.id)
+○ created_at (timestamp)
+● payslips:
 ○ id (uuid, primary key)
 ○ payroll_id (uuid, foreign key to payrolls)
 ○ employee_id (uuid, foreign key to employees)
-○ pay_data_snapshot (jsonb, Crucial: A snapshot of all pay components )
-■ e.g., {"base": 2000, "housing": 500, "TA": 150, "unpaid_leave_days": 1,
-"unpaid_leave_deduction": -100, "tax_paid": -250}
+○ pay_data_snapshot (jsonb) -- snapshot of all components as positive numbers
 ○ gross_pay (numeric)
 ○ total_deductions (numeric)
 ○ net_pay (numeric)
-● leave_periods ( New Table )
+○ pdf_blob (bytea) -- small binary blob for free-tier storage (optional, see Storage notes)
+○ created_at (timestamp)
+○ created_by (uuid references profiles.id)
+○ correction_of (uuid nullable) -- reference a previous payslip if this is a correction
+● leave_periods:
 ○ id (uuid, primary key)
-```
-
-```
 ○ company_id (uuid, foreign key to companies)
-○ name (text, e.g., "2025 Calendar Year")
+○ name (text)
 ○ start_date (date)
 ○ end_date (date)
 ○ is_active (boolean)
-● employee_leave_balances ( New Table )
+● employee_leave_balances:
 ○ id (uuid, primary key)
 ○ employee_id (uuid, foreign key to employees)
 ○ leave_period_id (uuid, foreign key to leave_periods)
-○ total_granted (numeric, e.g., 12)
+○ total_granted (numeric)
 ○ leaves_taken (numeric, default 0)
-○ (Note: remaining_leaves will be a computed value)
-● leave_requests ( New Table )
+○ remaining_leaves (generated as total_granted - leaves_taken or a view)
+● leave_requests:
 ○ id (uuid, primary key)
 ○ employee_id (uuid, foreign key to employees)
 ○ leave_period_id (uuid, foreign key to leave_periods)
@@ -166,85 +179,150 @@ This architecture is highly secure:
 ○ leave_type (text, e.g., 'paid', 'unpaid')
 ○ status (text, e.g., 'pending', 'approved', 'denied')
 ```
+
+Notes on storage of PDFs on the free tier
+- Because Supabase Storage may not be available on your current free plan, and hosting on Render does not provide durable object storage, the recommended MVP approach is:
+  1. Store the payslip binary (PDF) directly in Postgres using a bytea column (payslips.pdf_blob). This is acceptable for small teams and small number of payslips (MVP). Be mindful of DB size limits on free tier.
+  2. Alternatively, store only the pay_data_snapshot (jsonb) and generate PDFs on-demand in the FastAPI service. When a user requests a download, FastAPI renders the PDF and streams it to the user without storing it. This saves DB space but increases CPU/transient usage.
+  3. When/if object storage is added later (Supabase Storage or S3-compatible), migrate stored PDFs from the DB to object storage and store object paths using employee.id as folder key (e.g., payslips/{employee_id}/{payroll_id}.pdf).
+
+Because we've chosen employee.id as the canonical storage ID (Option B):
+- If object storage becomes available later, files will be stored under paths keyed by employees.id.
+- When using the DB blob approach, tag the payslip rows with employee_id to ensure queries & access controls map correctly.
+
 ### 5.2. Authentication & Row Level Security (RLS)
 
-RLS is the most critical security feature. We will enable it on all tables.
-● **RLS Policy 1: Employees can only see their own profile.**
-CREATE POLICY "Allow employee read-only on own profile"
-ON public.profiles FOR SELECT
-USING (auth.uid() = id AND role = 'employee');
-● **RLS Policy 2: Employees can only see their own payslips.**
-CREATE POLICY "Allow employee to see own payslips"
-ON public.payslips FOR SELECT
-USING (auth.uid() = (
-SELECT profile_id FROM employees WHERE id = payslips.employee_id
-));
-● **RLS Policy 3: Admins can see all employees in their company.**
-CREATE POLICY "Allow admin full access to employees in their
-company"
-ON public.employees FOR ALL
-USING (
-(SELECT role FROM profiles WHERE id = auth.uid()) = 'admin' AND
-(SELECT company_id FROM profiles WHERE id = auth.uid()) =
-employees.company_id
-);
-● **RLS Policy 4: Employees can manage their own leave requests.**
+RLS is the most critical security feature. We will enable it on all tables. Below are explicit policies and operational notes.
 
+Operational recommendation for migrations and RLS enabling:
+1. Create tables first.
+2. Seed an initial admin (using service_role via a secure migration script) so RLS policies have a known admin identity during enabling.
+3. Add RLS policies after the admin is seeded.
 
+Policies (examples)
+- Helper function (recommended):
 ```
-CREATE POLICY "Allow employee to manage own leave requests"
-ON public.leave_requests FOR ALL
-USING (auth.uid() = (
-SELECT profile_id FROM employees WHERE id =
-leave_requests.employee_id
-));
-● (Note: Additional RLS policies needed for admins on leave tables)
+CREATE FUNCTION public.is_admin_of_company(company uuid) RETURNS boolean AS $$
+  SELECT (role = 'admin') FROM public.profiles WHERE id = auth.uid() AND company_id = company;
+$$ LANGUAGE sql STABLE;
 ```
+- Profiles (employees can read own profile; admins can manage profiles in their company):
+```
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles_employee_read_own" ON public.profiles FOR SELECT
+  USING (auth.uid() = id AND role = 'employee');
+CREATE POLICY "profiles_admin_manage_company" ON public.profiles FOR ALL
+  USING (public.is_admin_of_company(company_id))
+  WITH CHECK (public.is_admin_of_company(company_id));
+```
+- Employees (admins can full access within their company; employees can access their own employee row):
+```
+ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "employees_admin_company" ON public.employees FOR ALL
+  USING (public.is_admin_of_company(company_id))
+  WITH CHECK (public.is_admin_of_company(company_id));
+CREATE POLICY "employees_employee_own" ON public.employees FOR SELECT
+  USING (auth.uid() = (SELECT profile_id FROM public.employees WHERE public.employees.id = id));
+```
+- Payslips (employees can see their own payslips; admins can see payslips for their company):
+```
+ALTER TABLE public.payslips ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "payslips_employee_own" ON public.payslips FOR SELECT
+  USING (auth.uid() = (SELECT profile_id FROM public.employees WHERE public.employees.id = payslips.employee_id));
+CREATE POLICY "payslips_admin_company" ON public.payslips FOR SELECT
+  USING (public.is_admin_of_company((SELECT company_id FROM public.employees WHERE public.employees.id = payslips.employee_id)));
+```
+- Leave requests (employee manages own; admins within company can manage):
+```
+ALTER TABLE public.leave_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "leave_requests_employee_own" ON public.leave_requests FOR ALL
+  USING (auth.uid() = (SELECT profile_id FROM public.employees WHERE public.employees.id = leave_requests.employee_id));
+CREATE POLICY "leave_requests_admin_company" ON public.leave_requests FOR ALL
+  USING (public.is_admin_of_company((SELECT company_id FROM public.employees WHERE public.employees.id = leave_requests.employee_id)));
+```
+
+RLS performance and caution notes
+- Keep policies as simple as possible, and prefer helper functions (like is_admin_of_company) to centralize logic.
+- Avoid long-running complex subqueries in RLS that may impact query performance. Test RLS policies with realistic datasets.
+
 ### 5.3. Storage
 
-```
-● Create one bucket: payslips
-● Set security rules so an employee can only read files from a folder matching their
-employee_id.
-```
+Because the canonical ID for storage is employees.id (Option B):
+- Object storage paths (future): payslips/{employee_id}/{payroll_id}.pdf
+- When using DB blob storage on the free tier, store pdf_blob in payslips and use employee_id in queries to serve/authorize access.
+- If you cannot store blobs in DB due to space, use on-demand PDF generation (no persistent storage) and log the access.
+
+Access control for files
+- If files are stored in object storage later, ensure the storage policy compares the authenticated user's profile_id to the employee mapping. If using employees.id as canonical key, implement a signed server endpoint in FastAPI that verifies auth.uid() maps to the employee_id, then returns a signed object storage URL. This avoids exposing service_role to the client and keeps storage policies simple.
+
 ## 6. Backend Plan: Python AI Microservice (FastAPI)
 
 ### 6.1. Purpose
 
-This service acts as the "AI Brain." It will be hosted separately and securely store the Gemini
-API key.
+This service acts as the "AI Brain." It will be hosted on Render and securely store the Gemini
+API key and, if needed, a supabase service key with tightly controlled usage.
 
 ### 6.2. API Endpoints
 
+Security model
+- All endpoints that access private context data must require a valid Supabase JWT from the
+  client. The FastAPI service must validate and decode the JWT, verify its signature and
+  expiry, and then fetch the user's profile from Supabase to check role & company.
+- Only after server-side authorization checks are satisfied should the FastAPI service use the
+  SUPABASE_SERVICE_KEY to perform elevated queries. All such actions must be logged.
+
 **1. POST /api/v1/chat (Unified Smart Chat Endpoint)**
-    ● **Request:** {"query": "Why was this so high?", "context": { "page_view": "/app/payslips/123",
-       "data": { ... } } }
-          ○ context object is **optional**.
-          ○ The frontend will pass context based on the user's current view.
+    ● **Auth:** Optional for public/general queries; REQUIRED for contextual queries containing
+      references to internal data (e.g., payslip IDs). The presence of context.data that references
+      internal IDs must force authentication and server-side verification.
+    ● **Request:** {"query": "Why was this so high?", "context": { "page_view": "/app/payslips/123", "data": { ... } }}
     ● **Logic:**
-       1. Receives the query and optional context.
-       2. **If context.data is present:** The AI service uses this data directly to build a rich
-          prompt for Gemini (e.g., "User is viewing payslip ID 123 and asked...").
-       3. **If context.data is NOT present:** The AI service treats it as a general query (e.g.,
-          "What is a 401k?"). It _could_ still fetch generic data from Supabase if needed (e.g.,
-          company policies).
-       4. Sends the constructed prompt to the Gemini API.
-       5. Returns the text response.
-    ● **Use:** This single endpoint intelligently handles both general Q&A and highly specific,
-       contextual questions based on what the user is doing in the app.
+       1. Validate JWT if context.data references a private resource.
+       2. If context.data present and references private records, map any employee identifiers
+          through the DB and sanitize PII (see Prompt Sanitization section) before constructing
+          the prompt.
+       3. Use the Gemini API with sanitized prompt and return a concise response.
+    ● **Rate limiting & cost controls:** enforce rate limits per-user and per-company, and
+      implement a budget cap for AI queries.
+
 **2. POST /api/v1/analyze-payroll (Admin Feature)**
+    ● **Auth:** REQUIRED (must be admin). Re-validate JWT and confirm admin role + company scope.
     ● **Request:** {"payroll_id": "uuid-of-payroll-run"}
-    ● **Headers:** Authorization: Bearer <supabase_auth_token> (Must be an admin)
     ● **Logic:**
-       1. Fetches _all_ payslips for that payroll_id and _all_ payslips from the _previous_ run.
-       2. Sends the mass data to Gemini.
-       3. **Prompt:** "Analyze this payroll data. Identify any anomalies or significant changes.
+       1. Fetch payslips for payroll_id and previous run using service_role ONLY after authorization.
+       2. Preprocess/aggregate data server-side to produce a compact summary (do not send full PII-heavy
+          records to the model). Examples: per-employee gross/net/percent_change, flags for new
+          deductions.
+       3. Send the summarized payload to Gemini (or optionally run a local statistical anomaly
+          detection step first to reduce AI calls / cost).
+       4. Return a structured JSON list of anomalies.
+    ● **Response schema (example):**
+    ```json
+    [
+      {
+        "employee_id": "uuid",
+        "metric": "net_pay",
+        "previous_value": 2500.00,
+        "current_value": 3200.00,
+        "percent_change": 0.28,
+        "severity": "high",
+        "suggested_action": "Review overtime entries"
+      }
+    ]
+    ```
 
+Prompt sanitization & PII policy
+- Do not send raw sensitive fields to Gemini. Examples of fields to strip or redact unless
+explicitly consented to and required: bank_account_number, ssn/tax_id, full_date_of_birth,
+passport numbers, direct personal contact details.
+- Prefer pseudonymous identifiers (employee_id) with server-side mapping when needed.
+- Log only metadata about prompts (user id, action, length) and avoid logging full prompts that
+contain PII.
 
-```
-List employees with >20% pay change, unusual deductions, or missing pay."
-```
-4. Returns a JSON list of identified anomalies.
+Service key usage & audit
+- Keep SUPABASE_SERVICE_KEY in server secrets only. Rotate keys regularly.
+- Limit the use of the service key to endpoints that absolutely require it.
+- Log queries made via service_role and maintain an audit trail.
 
 ## 7. Frontend Plan: Next.js App
 
@@ -265,129 +343,126 @@ List employees with >20% pay change, unusual deductions, or missing pay."
 ■ /payslips/[id] (Employee: View single payslip)
 ■ /profile (User's own profile)
 ■ /leave ( New: Employee: Request leave, view balance/history)
-■ /leave-management ( New: Admin: Approve/deny requests, manage
-periods/balances)
+■ /leave-management ( New: Admin: Approve/deny requests, manage periods/balances)
 ```
+
 ### 7.2. UI/UX
 
 ```
 ● Styling: Tailwind CSS
-● Component Library: Shadcn UI (Recommended) for professional, pre-built components
-(Tables, Forms, Modals) that work perfectly with React and Tailwind.
-● AI Chat: Will be a single "chat bubble" component, globally available. It will read the
-current page/data from a global state manager to provide context for API calls.
+● Component Library: Shadcn UI (Recommended)
+● AI Chat: Single chat bubble component, global state provides context to the chat.
 ```
-### 7.3. Data Fetching
+
+### 7.3. Data Fetching & State
 
 ```
-● Server Components: Use for initial, non-interactive data loads (e.g., fetching the list of
-payslips).
-● Client Components: Use for all interactive elements (forms, the AI chat input, buttons).
-● State Management:
-○ React Context / Zustand: For global state like user auth AND the current
-application context (e.g., { "view": "/app/payslips/123", "data": {...} }). The AI Chat
-component will read from this.
-○ TanStack Query (React Query): For all server-state (fetching, caching, mutating
-data from Supabase).
+● Server Components: initial data loads.
+● Client Components: interactive elements.
+● State Management: React Context / Zustand for global app context; TanStack Query for server-state.
 ```
+
 ## 8. Development Roadmap (Phased)
 
+Phases retained, with clarifications and acceptance criteria added in each sprint.
 
 ### Phase 1: Foundation (Sprint 0-1)
 
 ```
-● [ ] Supabase: Initialize project.
-● [ ] Supabase: Define and create all database tables from section 5.1 (including leave
-tables).
-● [ ] Supabase: Implement Authentication and all RLS policies.
+● [ ] Supabase: Initialize project (dev) and create DB migrations.
+● [ ] Supabase: Define and create all database tables from section 5.1 (including leave tables).
+● [ ] Supabase: Implement Authentication and RLS policies (seed admin first; enable RLS after seed).
 ● [ ] Next.js: Setup new project, integrate Tailwind.
 ● [ ] Next.js: Connect Supabase client (supabase-js).
 ● [ ] Feature: Build Login, Sign Up, and Logout pages.
 ● [ ] Feature: Create protected routes for the /app directory.
 ```
+
 ### Phase 2: Core Admin Features (Sprint 2-3)
 
 ```
-● [ ] Feature: Build Employee Management (CRUD) - forms, tables. Include fields for
-allowances_override (TA/DA).
+● [ ] Feature: Build Employee Management (CRUD) - forms, tables. Include fields for allowances_override.
 ● [ ] Feature: Build Salary Structure (CRUD) - forms for jsonb data.
-● [ ] Backend: Write the core "Run Payroll" logic.
-○ Must include logic to merge salary_structures.allowances +
-employees.allowances_override.
+● [ ] Backend: Write the core "Run Payroll" logic with a deterministic calculation spec.
+  ○ Must include merging salary_structures.allowances + employees.allowances_override.
+  ○ Use explicit rounding rules and unit test vectors.
 ● [ ] Feature: Build Payroll dashboard for Admin (List runs, "Run Payroll" button).
 ```
+
+Payroll calculation spec (brief)
+- Input sources: salary_structures.base_pay, allowances (structure), employees.allowances_override, deductions_fixed, deductions_percent.
+- Step 1: Resolve base_pay and allowances: merged_allowances = merge(base_allowances, overrides) where overrides replace or add.
+- Step 2: Compute gross_pay = base_pay + sum(merged_allowances)
+- Step 3: Apply fixed deductions: fixed_total = sum(deductions_fixed)
+- Step 4: Apply percent deductions: percent_total = sum(component_amount = basis * percent) (basis=base_pay or gross as defined per component)
+- Step 5: total_deductions = fixed_total + percent_total
+- Step 6: net_pay = gross_pay - total_deductions
+- Rounding: Round to 2 decimal places at component level and final totals. Document rounding method and unit test vectors.
+
 ### Phase 3: Leave Management (Sprint 4)
 
 ```
-● [ ] Feature (Admin): Build UI to manage leave_periods and employee_leave_balances.
-● [ ] Feature (Admin): Build UI (/leave-management) to approve/deny leave_requests.
-● [ ] Feature (Employee): Build UI (/leave) to submit leave_requests and view balance.
-● [ ] Backend: Update "Run Payroll" logic to query leave_requests and apply deductions for
-'unpaid' leaves, updating the pay_data_snapshot.
-● [ ] Backend (Optional): Create a Supabase scheduled function to reset
-employee_leave_balances when a leave_period ends.
+● [ ] Admin: manage leave_periods and employee_leave_balances.
+● [ ] Admin: approve/deny leave_requests.
+● [ ] Employee: submit leave_requests and view balance.
+● [ ] Backend: Update "Run Payroll" logic to account for unpaid leaves, applying deductions and adding snapshot entries.
+● [ ] Backend (Optional): Scheduled function to reset employee_leave_balances when a leave_period ends.
 ```
+
 ### Phase 4: Core Employee Features (Sprint 5)
 
 ```
-● [ ] Feature: Build Employee Dashboard (show simple stats, leave balance).
-● [ ] Feature: Build Employee Profile (view/edit).
-● [ ] Feature: Build Payslip List (Employee can see their payslips).
-● [ ] Feature: Build single Payslip view (must clearly show unpaid leave deductions).
+● [ ] Employee Dashboard, Profile, Payslip List, Single Payslip View (showing deductions clearly).
 ```
+
 ### Phase 5: AI Integration (Sprint 6-7)
 
 ```
-● [ ] Python: Setup FastAPI service.
-● [ ] Python: Securely add Gemini and Supabase API keys.
-● [ ] Python: Build the single POST /api/v1/chat smart endpoint.
-● [ ] Next.js: Build the Global AI Chat Component.
-● [ ] Next.js: Implement the global state manager (Context/Zustand) to track user's current
-view/data.
-● [ ] Next.js: Connect Chat component to the global state and the /api/v1/chat endpoint.
+● [ ] FastAPI: Setup service on Render.
+● [ ] FastAPI: Securely store Gemini and (limited) Supabase service keys.
+● [ ] FastAPI: Build POST /api/v1/chat endpoint (contextual auth checks and prompt sanitization).
+● [ ] Next.js: Global AI Chat Component and global state integration.
+● [ ] FastAPI: Build POST /api/v1/analyze-payroll with server-side summarization + anomaly schema.
 ```
 
 ### Phase 6: Polish & Advanced Features (Ongoing)
 
 ```
-● [ ] Feature: PDF Generation for payslips.
-● [ ] Feature: Store/Retrieve PDF from Supabase Storage.
+● [ ] Feature: PDF Generation for payslips (store in DB blob for free-tier or generate-on-demand).
+● [ ] Feature: Store/Retrieve PDFs from object storage when available; migrate from DB blob when possible.
 ● [ ] Feature: Build the /api/v1/analyze-payroll AI feature for admins.
-● [ ] Infra: Set up email notifications ("Leave Approved", "Payroll Processed").
+● [ ] Infra: Email notifications and monitoring.
 ```
+
 ## 9. Future Enhancements & Research (New Section)
 
-This section outlines potential high-value features to explore after the core product is stable.
-● **AI-Powered Payroll Forecasting:**
-○ **Concept:** An admin-facing tool where they can ask natural language questions like,
-"Forecast our total payroll cost for Q1 2026 if we hire 3 new engineers at
-$80,000/year" or "Model the cost impact of giving a 5% cost-of-living adjustment to
-the support department."
-○ **Implementation:** Requires the AI to read current payroll data, accept hypothetical
-inputs, and perform calculations.
-● **Real-time Compliance & Tax Automation:**
-○ **Concept:** An AI assistant, grounded on real-time tax law databases (via Google
-Search grounding), that can proactively notify admins of compliance risks.
-○ **Example:** "A new state tax law affecting employees in California was just passed.
-You have 4 employees in California. Click here to see the impact."
-● **AI-Powered Employee Onboarding Workflow:**
-○ **Concept:** A conversational AI that guides a new employee through the onboarding
-process.
-○ **Implementation:** A chatbot workflow that walks the user through filling out their
-profile and employees data, asking for bank details, tax forms, etc., and performing
-the UPDATE operations on their behalf.
-● **Advanced AI Anomaly Detection:**
-○ **Concept:** Evolve the /api/v1/analyze-payroll feature from a simple "last month vs.
-this month" comparison to a statistical model.
-○ **Implementation:** The AI would analyze 12+ months of payroll data to build a
-baseline for each employee. It could then flag true statistical anomalies (e.g.,
-"John's overtime pay is 3 standard deviations above his 12-month average," "Jane's
-tax deduction suddenly dropped 50%").
-● **Compensation & Performance Linking:**
-○ **Concept:** (Requires integration with an external HRIS/Performance tool) Allow
-admins to run reports linking pay to performance.
-○ **Example:** "Show me all employees rated 'Exceeds Expectations' and their current
-salary band," or "Identify potential pay-equity gaps for female employees in the
-engineering department."
+(Kept as in original plan; mostly unchanged but note PII constraints for AI features.)
 
+## 10. Security & Operational Notes (Added)
 
+- Do not expose service_role or Gemini keys in client builds.
+- Validate Supabase JWT in the FastAPI service; check role and company scope before elevated queries.
+- Prompt sanitization: redact PII before sending to Gemini; store only metadata in logs.
+- Payslips are immutable by default. Any corrections must create a new payslip row with correction_of set.
+- Seed an initial admin with migration scripts before enabling RLS in production.
+- Audit logs: record payroll runs, who triggered them, and the payroll_id in an audit table or log.
+
+## 11. Indexes & Performance
+
+- Add indexes on employees(profile_id), payslips(employee_id), payrolls(company_id, pay_period_start), and frequent search fields.
+- Test run payroll performance with realistic data or sample dataset to identify slow queries.
+
+## 12. Testing Strategy
+
+- Unit tests: payroll calculation logic with example vectors.
+- Integration tests: RLS behavior and end-to-end auth flows (use test JWTs and test seed users).
+- E2E tests: login, run payroll, view payslip, download PDF.
+
+## 13. Migration & Seeding
+
+- Migration order: create tables -> seed admin -> add RLS policies.
+- Provide a secure script to create the first admin (invitation or seeded user via service_role only in CI/migrations).
+
+## 14. Change log & versioning
+
+- Keep PLAN.md versioned. This document is v1.1 and includes security and storage updates for the free-tier environment.
