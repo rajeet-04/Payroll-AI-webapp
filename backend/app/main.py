@@ -6,7 +6,7 @@ Main application entry point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1.endpoints import chat, payroll
+from app.api.v1.endpoints import chat, payroll, auth, proxy
 
 app = FastAPI(
     title="Payroll AI Backend",
@@ -21,9 +21,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["set-cookie"],
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(proxy.router, prefix="/api/v1/proxy", tags=["proxy"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
 

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { createClient } from '@/lib/supabase/client'
+import { logout } from '@/lib/api/proxy'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,19 +14,32 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Bell, LogOut, User } from 'lucide-react'
 
+interface UserSummary {
+  email?: string | null
+}
+
+interface ProfileSummary {
+  full_name?: string | null
+  role?: string | null
+}
+
 interface AppHeaderProps {
-  user: any
-  profile: any
+  user: UserSummary
+  profile: ProfileSummary
 }
 
 export function AppHeader({ user, profile }: AppHeaderProps) {
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    try {
+      await logout()
+    } catch (error) {
+      console.error('Logout failed:', error)
+    } finally {
+      router.push('/login')
+      router.refresh()
+    }
   }
 
   return (

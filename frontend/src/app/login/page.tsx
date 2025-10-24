@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { createClient } from "@/lib/supabase/client"
+import { login } from "@/lib/api/proxy"
 import { BarChart3, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
@@ -16,10 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [fullName, setFullName] = useState("")
   const router = useRouter()
-  const supabase = createClient()
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,56 +24,28 @@ export default function LoginPage() {
     setError("")
 
     try {
-      if (isSignUp) {
-        // Sign up
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          },
-        })
-
-        if (error) throw error
-
-        if (data.user) {
-          // Create profile
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .insert([
-              {
-                id: data.user.id,
-                email: data.user.email,
-                full_name: fullName,
-                role: "employee",
-              },
-            ])
-
-          if (profileError) {
-            console.error("Profile creation error:", profileError)
-            throw profileError
-          }
-
-          router.push("/app/dashboard")
-          router.refresh()
-        }
-      } else {
-        // Sign in
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (error) throw error
-
-        router.push("/app/dashboard")
-        router.refresh()
+      // Sign in via backend - cookies are set automatically via credentials: 'include'
+      const result = await login(email, password)
+      
+      if (!result) {
+        throw new Error('No response from login')
       }
-    } catch (error: any) {
-      setError(error.message || "An error occurred during authentication")
-    } finally {
+      
+      console.log('Login successful, result:', result)
+      
+      // Small delay to ensure cookies are set before navigation
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      console.log('Redirecting to dashboard...')
+      
+      // Use Next.js router for proper navigation
+      router.push("/app/dashboard")
+      
+      // Keep loading state true during redirect
+      return
+    } catch (error: unknown) {
+      console.error('Login error:', error)
+      setError(error instanceof Error ? error.message : "An error occurred during authentication")
       setIsLoading(false)
     }
   }
@@ -94,37 +63,19 @@ export default function LoginPage() {
             <span className="text-3xl font-bold">Payroll AI</span>
           </Link>
           <p className="text-muted-foreground text-center">
-            {isSignUp
-              ? "Create your account to get started"
-              : "Sign in to manage your payroll"}
+            Sign in to manage your payroll
           </p>
         </div>
 
         <Card>
           <form onSubmit={handleAuth}>
             <CardHeader>
-              <CardTitle>{isSignUp ? "Create Account" : "Sign In"}</CardTitle>
+              <CardTitle>Sign In</CardTitle>
               <CardDescription>
-                {isSignUp
-                  ? "Enter your information to create an account"
-                  : "Enter your credentials to access your account"}
+                Enter your credentials to access your account
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isSignUp && (
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="John Doe"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -159,39 +110,8 @@ export default function LoginPage() {
             <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isSignUp ? "Create Account" : "Sign In"}
+                Sign In
               </Button>
-              <div className="text-sm text-center text-muted-foreground">
-                {isSignUp ? (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSignUp(false)
-                        setError("")
-                      }}
-                      className="text-primary hover:underline"
-                    >
-                      Sign in
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Don't have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSignUp(true)
-                        setError("")
-                      }}
-                      className="text-primary hover:underline"
-                    >
-                      Sign up
-                    </button>
-                  </>
-                )}
-              </div>
             </CardFooter>
           </form>
         </Card>

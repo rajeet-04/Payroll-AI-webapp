@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "changeme"
     JWT_ALGORITHM: str = "HS256"
     
+    # Cookie settings
+    COOKIE_DOMAIN: str = ""  # Set to ".yourdomain.com" in production, empty for localhost
+    COOKIE_SECURE: bool = False  # Set to True in production (HTTPS only)
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -31,7 +35,13 @@ class Settings(BaseSettings):
         @classmethod
         def parse_env_var(cls, field_name: str, raw_val: str):
             if field_name == "CORS_ORIGINS":
+                # Handle both JSON array format and comma-separated format
+                if raw_val.startswith("["):
+                    import json
+                    return json.loads(raw_val)
                 return [origin.strip() for origin in raw_val.split(",")]
+            if field_name == "COOKIE_DOMAIN" and raw_val == "":
+                return None
             return raw_val
 
 

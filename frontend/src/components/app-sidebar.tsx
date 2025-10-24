@@ -11,16 +11,19 @@ import {
   DollarSign,
   Calendar,
   CheckSquare,
-  Settings,
   User,
 } from 'lucide-react'
 
-interface AppSidebarProps {
-  user: any
-  profile: any
+interface ProfileSummary {
+  full_name?: string | null
+  role?: string | null
 }
 
-export function AppSidebar({ user, profile }: AppSidebarProps) {
+interface AppSidebarProps {
+  profile: ProfileSummary
+}
+
+export function AppSidebar({ profile }: AppSidebarProps) {
   const pathname = usePathname()
   const isAdmin = profile?.role === 'admin'
 

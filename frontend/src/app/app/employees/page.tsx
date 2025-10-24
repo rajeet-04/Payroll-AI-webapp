@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getCurrentUser, listEmployees } from '@/lib/api/proxy'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AddEmployeeDialog } from '@/components/add-employee-dialog'
 import { ToggleEmployeeStatus } from '@/components/toggle-employee-status'
@@ -42,38 +42,34 @@ export default function EmployeesPage() {
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
+      try {
+        // Get current user profile via backend
+        const profileData = await getCurrentUser()
+        
+        if (!profileData) {
+          router.push('/login')
+          return
+        }
+
+        if (profileData?.role !== 'admin') {
+          router.push('/app/dashboard')
+          return
+        }
+        
+        setProfile(profileData)
+
+        // List employees via backend proxy
+        const employeesData = await listEmployees(profileData.company_id)
+        setEmployees(employeesData || [])
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
         router.push('/login')
-        return
+      } finally {
+        setLoading(false)
       }
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profileData?.role !== 'admin') {
-        router.push('/app/dashboard')
-        return
-      }
-      
-      setProfile(profileData)
-
-      const { data: employeesData } = await supabase
-        .from('employees')
-        .select('*, profiles(*), salary_structures!salary_structures_employee_id_fkey(*), employee_leave_balances(total_granted, leaves_taken)')
-        .eq('company_id', profileData.company_id)
-        .order('created_at', { ascending: false })
-
-      setEmployees(employeesData || [])
-      setLoading(false)
     }
 
     fetchData()

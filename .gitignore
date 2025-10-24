@@ -40,3 +40,4 @@ htmlcov/
 # Database
 *.db
 *.sqlite
+node_modules
