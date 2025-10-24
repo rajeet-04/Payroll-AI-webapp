@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "changeme"
     JWT_ALGORITHM: str = "HS256"
     
+    # Cookie settings
+    COOKIE_DOMAIN: str = ""
+    COOKIE_SECURE: bool = False
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

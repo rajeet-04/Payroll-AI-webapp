@@ -22,6 +22,9 @@ export default async function LeaveManagementPage() {
     .eq('id', user.id)
     .single()
 
+  console.log('Profile:', profile)
+  console.log('Company ID:', profile?.company_id)
+
   if (profile?.role !== 'admin') {
     redirect('/app/dashboard')
   }
@@ -34,30 +37,49 @@ export default async function LeaveManagementPage() {
     .order('is_active', { ascending: false })
     .order('start_date', { ascending: false })
 
-  // Fetch pending leave requests for the company
-  const { data: leaveRequests, error: requestsError } = await supabase
-    .from('leave_requests')
-    .select(`
-      *,
-      employees!inner (
-        id,
-        designation,
-        company_id,
-        profiles (
-          full_name,
-          email
+  // Fetch employee IDs for the company
+  const { data: employees, error: employeesError } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('company_id', profile.company_id)
+
+  console.log('Employees error:', employeesError)
+  console.log('Employees data:', employees)
+
+  const employeeIds = employees?.map(emp => emp.id) || []
+  console.log('Employee IDs:', employeeIds)
+
+  let leaveRequests = []
+  let requestsError = null
+
+  if (employeeIds.length > 0) {
+    const result = await supabase
+      .from('leave_requests')
+      .select(`
+        *,
+        employees (
+          id,
+          designation,
+          company_id,
+          profiles (
+            full_name,
+            email
+          )
         ),
-        salary_structures (
-          base_pay
+        leave_periods (
+          name
         )
-      ),
-      leave_periods (
-        name
-      )
-    `)
-    .eq('employees.company_id', profile.company_id)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
+      `)
+      .in('employee_id', employeeIds)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    leaveRequests = result.data || []
+    requestsError = result.error
+  }
+
+  console.log('Leave requests error:', requestsError)
+  console.log('Leave requests data:', leaveRequests)
 
   if (requestsError) {
     console.error('Error fetching leave requests:', requestsError)
@@ -65,26 +87,32 @@ export default async function LeaveManagementPage() {
   }
 
   // Fetch all leave requests for debugging/history
-  const { data: allRequests } = await supabase
-    .from('leave_requests')
-    .select(`
-      *,
-      employees!inner (
-        id,
-        designation,
-        company_id,
-        profiles (
-          full_name,
-          email
+  let allRequests = []
+
+  if (employeeIds.length > 0) {
+    const result = await supabase
+      .from('leave_requests')
+      .select(`
+        *,
+        employees (
+          id,
+          designation,
+          company_id,
+          profiles (
+            full_name,
+            email
+          )
+        ),
+        leave_periods (
+          name
         )
-      ),
-      leave_periods (
-        name
-      )
-    `)
-    .eq('employees.company_id', profile.company_id)
-    .order('created_at', { ascending: false })
-    .limit(20)
+      `)
+      .in('employee_id', employeeIds)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    allRequests = result.data || []
+  }
 
   return (
     <div className="space-y-6">
