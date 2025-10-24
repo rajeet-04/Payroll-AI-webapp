@@ -89,7 +89,8 @@ export function AIAssistant({
         await streamPayslipExplanation(query, session.access_token, chatHistory)
       } else {
         // Use regular chat endpoint for other intents
-        const response = await fetch("http://localhost:8000/api/v1/chat/chat", {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const response = await fetch(`${apiUrl}/api/v1/chat/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -144,7 +145,8 @@ export function AIAssistant({
     _chatHistory: { role: string; content: string }[]
   ) => {
     try {
-      const response = await fetch("http://localhost:8000/api/v1/chat/chat/stream", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/v1/chat/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -266,7 +268,7 @@ export function AIAssistant({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] h-[600px] flex flex-col p-0">
+      <DialogContent className="sm:max-w-[600px] h-[600px] flex flex-col p-0 backdrop-blur-md bg-white/50 dark:bg-gray-900/50">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />

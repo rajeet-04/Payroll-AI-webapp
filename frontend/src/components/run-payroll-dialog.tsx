@@ -48,7 +48,8 @@ export function RunPayrollDialog({ companyId, userId }: RunPayrollDialogProps) {
       }
 
       // Call backend API to process payroll
-      const response = await fetch("http://localhost:8000/api/v1/payroll/process-payroll", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/v1/payroll/process-payroll`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

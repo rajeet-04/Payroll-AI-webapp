@@ -35,7 +35,8 @@ export function DownloadPayslipButton({
       }
 
       // Call backend API to download payslip
-      const response = await fetch(`http://localhost:8000/api/v1/payroll/payslip/${payslipId}/download`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/v1/payroll/payslip/${payslipId}/download`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${session.access_token}`
