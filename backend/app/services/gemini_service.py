@@ -198,29 +198,36 @@ Please provide a helpful, accurate response based on the context provided. Retur
         Returns:
             AI-generated response
         """
+        print("TEST PRINT: generate_response called")
         try:
             # Sanitize and mask context
             safe_context = self.sanitize_and_mask_context(context) if context else {}
             # Compact context to essential fields to avoid duplicated/oversized prompts
             safe_context = self._compact_payslip_context(safe_context) if safe_context else {}
-            
+
             # Build prompt with template if intent provided
             prompt = self._build_prompt_with_template(query, safe_context, intent)
-            
+
             # Prepend custom system instruction if provided
             if system_instruction:
                 prompt = f"SYSTEM INSTRUCTION: {system_instruction}\n\n{prompt}"
-            
+
             # VERBOSE: Print the full prompt being sent to AI
-            # print(f"VERBOSE: Sending prompt to AI:\n{prompt}\n")  # Commented out for production
-            
+            logger.info(f"GEMINI VERBOSE PROMPT SENT TO AI:\n{'='*40}\n{prompt}\n{'='*40}")
+            print(f"VERBOSE: Sending prompt to AI:\n{prompt}\n")  # Commented out for production
+
+            # Print query, context, and prompt for debugging/traceability
+            print(f"QUERY: {query}")
+            print(f"CONTEXT: {json.dumps(safe_context, indent=2)}")
+            print(f"PROMPT: {prompt}\n{'='*40}")
+
             # Generate response using new SDK
             config = genai.types.GenerateContentConfig(
                 temperature=self.generation_config["temperature"],
                 top_p=self.generation_config["top_p"],
                 max_output_tokens=self.generation_config["max_output_tokens"]
             )
-            
+
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt,

@@ -51,7 +51,7 @@ export default async function PayslipsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">My Payslips</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">My Payslips</h2>
         <p className="text-muted-foreground">
           View and download your payment history
         </p>
@@ -73,14 +73,14 @@ export default async function PayslipsPage() {
               {payslips.map((payslip) => (
                 <div
                   key={payslip.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4 gap-4"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
                       <FileText className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-medium">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
                         {new Date(payslip.payrolls?.pay_period_start || payslip.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </p>
                       <p className="text-sm text-muted-foreground">
@@ -88,8 +88,8 @@ export default async function PayslipsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right mr-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <div className="text-left sm:text-right">
                       <p className="text-sm font-medium">
                         ₹{payslip.gross_pay.toLocaleString()}
                       </p>

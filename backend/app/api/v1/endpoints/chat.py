@@ -241,35 +241,37 @@ async def _enrich_context_by_intent(
                     # Ignore arithmetic issues
                     pass
         
+
         elif intent == "leave_advice":
-            # Fetch leave balance and recent leave history
-            balance_response = supabase.table("employee_leave_balances").select(
-                "*"
-            ).eq("employee_id", employee_id).single().execute()
-            
-            if balance_response.data:
+            # Fetch all leave balances for the employee
+            balances_response = supabase.table("employee_leave_balances").select("*").eq("employee_id", employee_id).execute()
+            if balances_response.data:
                 enriched["data"] = enriched.get("data", {})
-                enriched["data"]["leave_balance"] = balance_response.data
-            
-            # Fetch recent leave requests
-            requests_response = supabase.table("leave_requests").select(
-                "*"
-            ).eq("employee_id", employee_id).order(
-                "created_at", desc=True
-            ).limit(5).execute()
-            
-            if requests_response.data:
-                enriched["data"]["recent_leaves"] = requests_response.data
-            
-            # Fetch active and upcoming leave periods
-            periods_response = supabase.table("leave_periods").select(
-                "*"
-            ).eq("company_id", employee["company_id"]).order(
-                "start_date", desc=False
-            ).limit(10).execute()
-            
+                enriched["data"]["leave_balances"] = balances_response.data
+
+            # Fetch all leave requests for the employee (no limit)
+            all_requests_response = supabase.table("leave_requests").select("*").eq("employee_id", employee_id).order("created_at", desc=True).execute()
+            if all_requests_response.data:
+                requests = all_requests_response.data
+                # Group by status
+                enriched["data"]["approved_leaves"] = [r for r in requests if r.get("status") == "approved"]
+                enriched["data"]["pending_leaves"] = [r for r in requests if r.get("status") == "pending"]
+                enriched["data"]["revoked_leaves"] = [r for r in requests if r.get("status") in ("revoked", "cancelled", "canceled")]
+                enriched["data"]["rejected_leaves"] = [r for r in requests if r.get("status") == "rejected"]
+                enriched["data"]["all_leaves"] = requests
+
+                # Leaves taken: count of all approved + revoked/cancelled
+                enriched["data"]["leaves_taken"] = len([r for r in requests if r.get("status") in ("approved", "revoked", "cancelled", "canceled")])
+
+            # Fetch full salary structure for the employee (all fields/components)
+            salary_response = supabase.table("salary_structures").select("*").eq("employee_id", employee_id).order("created_at", desc=True).execute()
+            if salary_response.data:
+                enriched["data"]["salary_structure"] = salary_response.data[0] if len(salary_response.data) > 0 else None
+
+            # Fetch all active and upcoming leave periods/holidays for the company (no limit)
+            periods_response = supabase.table("leave_periods").select("*").eq("company_id", employee["company_id"]).order("start_date", desc=False).execute()
             if periods_response.data:
-                enriched["data"]["leave_periods"] = periods_response.data
+                enriched["data"]["upcoming_holidays"] = [p for p in periods_response.data if not p.get("end_date") or p["end_date"] >= datetime.utcnow().date().isoformat()]
         
         elif intent in ["payslip_tax_suggestions", "dashboard_insights"]:
             # Fetch recent payslips for analysis (12 months)

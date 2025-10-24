@@ -403,7 +403,7 @@ export function AIAssistant({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] h-[600px] flex flex-col p-0 backdrop-blur-md bg-white/50 dark:bg-gray-900/50">
+      <DialogContent className="h-full sm:h-[600px] sm:max-w-[600px] flex flex-col p-0 backdrop-blur-md bg-white/50 dark:bg-gray-900/50">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />

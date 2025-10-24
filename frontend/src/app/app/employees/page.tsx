@@ -134,24 +134,24 @@ export default function EmployeesPage() {
                     key={employee.id}
                     className="rounded-lg border overflow-hidden"
                   >
-                    <div className="flex items-center justify-between p-4 hover:bg-accent transition-colors">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <div className="flex items-center justify-between p-4 hover:bg-accent transition-colors gap-2">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground flex-shrink-0">
                           {employee.profiles?.full_name?.[0]?.toUpperCase() || 'E'}
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{employee.profiles?.full_name || 'N/A'}</p>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{employee.profiles?.full_name || 'N/A'}</p>
+                          <p className="text-sm text-muted-foreground truncate">
                             {employee.designation} • Joined {new Date(employee.join_date).toLocaleDateString()}
                           </p>
-                          <div className="flex gap-4 mt-1">
+                          <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mt-1">
                             {salaryStructure && (
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-sm text-muted-foreground truncate">
                                 <span className="font-medium">Base Pay:</span> ₹{salaryStructure.base_pay?.toLocaleString()}
                               </p>
                             )}
                             {employee.employee_leave_balances?.[0] && (
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-sm text-muted-foreground truncate">
                                 <span className="font-medium">Leaves:</span>{' '}
                                 {(employee.employee_leave_balances[0].total_granted || 0) - (employee.employee_leave_balances[0].leaves_taken || 0)}/{employee.employee_leave_balances[0].total_granted || 0} available
                               </p>
@@ -159,8 +159,8 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap ${
                           employee.is_active
                             ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                             : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
@@ -183,7 +183,7 @@ export default function EmployeesPage() {
                     {isExpanded && salaryStructure && (
                       <div className="border-t bg-muted/50 p-4">
                         <h4 className="font-semibold mb-3">Salary Breakdown</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           {/* Base Pay */}
                           <div>
                             <p className="text-sm font-medium mb-2">Base Pay</p>

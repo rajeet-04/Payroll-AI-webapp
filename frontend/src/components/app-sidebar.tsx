@@ -18,9 +18,11 @@ import {
 interface AppSidebarProps {
   user: any
   profile: any
+  isMobile?: boolean
+  onClose?: () => void
 }
 
-export function AppSidebar({ user, profile }: AppSidebarProps) {
+export function AppSidebar({ user, profile, isMobile = false, onClose }: AppSidebarProps) {
   const pathname = usePathname()
   const isAdmin = profile?.role === 'admin'
 
@@ -70,10 +72,10 @@ export function AppSidebar({ user, profile }: AppSidebarProps) {
   ]
 
   return (
-    <aside className="w-64 border-r bg-card">
-      <div className="flex h-full flex-col">
+    <aside className={cn("border-r bg-card", isMobile ? "flex w-full" : "hidden sm:flex sm:w-64")}>
+      <div className="flex h-full flex-col w-full">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-2 border-b px-6">
+        <div className="flex h-14 sm:h-16 items-center gap-2 border-b px-4 sm:px-6">
           <BarChart3 className="h-6 w-6" />
           <span className="text-lg font-bold">Payroll AI</span>
         </div>
@@ -85,6 +87,7 @@ export function AppSidebar({ user, profile }: AppSidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={onClose}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   pathname === item.href

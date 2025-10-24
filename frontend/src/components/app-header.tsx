@@ -12,7 +12,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, LogOut, User } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
+import { Bell, LogOut, User, Menu } from 'lucide-react'
+import { AppSidebar } from '@/components/app-sidebar'
+import { useState } from 'react'
 
 interface AppHeaderProps {
   user: any
@@ -22,6 +31,7 @@ interface AppHeaderProps {
 export function AppHeader({ user, profile }: AppHeaderProps) {
   const router = useRouter()
   const supabase = createClient()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -30,12 +40,28 @@ export function AppHeader({ user, profile }: AppHeaderProps) {
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
-      <div>
-        <h1 className="text-lg font-semibold">
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-card px-4 sm:px-6">
+      {/* Mobile Menu Trigger */}
+      <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="mr-2 sm:hidden">
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </DialogTrigger>
+        <VisuallyHidden>
+          <DialogTitle>Navigation Menu</DialogTitle>
+        </VisuallyHidden>
+        <DialogContent className="p-0 h-full sm:h-auto sm:max-w-xs bg-background/90 backdrop-blur-md">
+          <AppSidebar user={user} profile={profile} isMobile={true} onClose={() => setMobileMenuOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex-1 min-w-0">
+        <h1 className="text-xs sm:text-base lg:text-lg font-semibold truncate">
           Welcome back, {profile?.full_name?.split(' ')[0] || 'User'}!
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="hidden sm:block text-xs sm:text-sm text-muted-foreground">
           {profile?.role === 'admin'
             ? 'Manage your organization'
             : 'View your payroll information'}

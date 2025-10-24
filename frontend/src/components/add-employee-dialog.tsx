@@ -243,7 +243,7 @@ export function AddEmployeeDialog({ companyId }: AddEmployeeDialogProps) {
           Add Employee
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto backdrop-blur-md bg-white/70 dark:bg-gray-800/70">
+      <DialogContent className="h-full sm:h-auto sm:max-w-[600px] sm:max-h-[90vh] overflow-y-auto backdrop-blur-md bg-white/70 dark:bg-gray-800/70">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add New Employee</DialogTitle>

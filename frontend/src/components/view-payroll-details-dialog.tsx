@@ -91,7 +91,7 @@ export function ViewPayrollDetailsDialog({ payroll }: ViewPayrollDetailsDialogPr
           View Details
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="h-full sm:h-auto sm:max-w-4xl sm:max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Payroll Details</DialogTitle>
           <DialogDescription>
@@ -102,7 +102,7 @@ export function ViewPayrollDetailsDialog({ payroll }: ViewPayrollDetailsDialogPr
 
         <div className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">Total Gross Pay</CardTitle>
@@ -138,35 +138,37 @@ export function ViewPayrollDetailsDialog({ payroll }: ViewPayrollDetailsDialogPr
               {loading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
               ) : payslips.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 font-medium">Employee</th>
-                        <th className="text-right py-3 px-4 font-medium">Gross Pay</th>
-                        <th className="text-right py-3 px-4 font-medium">Deductions</th>
-                        <th className="text-right py-3 px-4 font-medium">Net Pay</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payslips.map((payslip) => (
-                        <tr key={payslip.id} className="border-b hover:bg-muted/50">
-                          <td className="py-3 px-4">
-                            {payslip.employees?.profile?.full_name || 'Unknown'}
-                          </td>
-                          <td className="text-right py-3 px-4">
-                            ₹{payslip.gross_pay?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                          </td>
-                          <td className="text-right py-3 px-4">
-                            ₹{payslip.total_deductions?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                          </td>
-                          <td className="text-right py-3 px-4 font-medium">
-                            ₹{payslip.net_pay?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                          </td>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <table className="min-w-full divide-y divide-border">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 font-medium whitespace-nowrap">Employee</th>
+                          <th className="text-right py-3 px-4 font-medium whitespace-nowrap">Gross Pay</th>
+                          <th className="text-right py-3 px-4 font-medium whitespace-nowrap">Deductions</th>
+                          <th className="text-right py-3 px-4 font-medium whitespace-nowrap">Net Pay</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {payslips.map((payslip) => (
+                          <tr key={payslip.id} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {payslip.employees?.profile?.full_name || 'Unknown'}
+                            </td>
+                            <td className="text-right py-3 px-4 whitespace-nowrap">
+                              ₹{payslip.gross_pay?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                            </td>
+                            <td className="text-right py-3 px-4 whitespace-nowrap">
+                              ₹{payslip.total_deductions?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                            </td>
+                            <td className="text-right py-3 px-4 font-medium whitespace-nowrap">
+                              ₹{payslip.net_pay?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

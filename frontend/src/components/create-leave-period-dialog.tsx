@@ -70,7 +70,7 @@ export function CreateLeavePeriodDialog({ companyId }: CreateLeavePeriodDialogPr
           Create Leave Period
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="h-full sm:h-auto sm:max-w-[500px] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Leave Period</DialogTitle>
