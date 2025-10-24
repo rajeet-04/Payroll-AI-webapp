@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, DollarSign, FileText, TrendingUp } from 'lucide-react'
+import { DashboardAIHelper } from '@/components/dashboard-ai-helper'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -217,6 +218,20 @@ export default async function DashboardPage() {
           </p>
         </div>
 
+        {/* AI Helper Card */}
+        <DashboardAIHelper
+          employeeId={employee?.id}
+          latestPayslip={payslips?.[0] ? {
+            net_pay: payslips[0].net_pay,
+            gross_pay: payslips[0].gross_pay,
+            created_at: payslips[0].created_at,
+          } : undefined}
+          leaveBalance={leaveBalance ? {
+            remaining_leaves: leaveBalance.remaining_leaves,
+            leaves_taken: leaveBalance.leaves_taken,
+          } : undefined}
+        />
+
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -228,7 +243,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${payslips?.[0]?.net_pay?.toFixed(2) || '0.00'}
+                ₹{payslips?.[0]?.net_pay?.toFixed(2) || '0.00'}
               </div>
               <p className="text-xs text-muted-foreground">
                 Net pay this period
@@ -289,7 +304,7 @@ export default async function DashboardPage() {
                   >
                     <div>
                       <p className="font-medium">
-                        ${payslip.net_pay.toFixed(2)}
+                        ₹{payslip.net_pay.toFixed(2)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(payslip.created_at).toLocaleDateString()}

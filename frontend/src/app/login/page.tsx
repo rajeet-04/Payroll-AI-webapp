@@ -56,6 +56,7 @@ export default function LoginPage() {
 
           if (profileError) {
             console.error("Profile creation error:", profileError)
+            throw profileError
           }
 
           router.push("/app/dashboard")

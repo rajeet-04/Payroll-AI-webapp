@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { FileText, Download } from 'lucide-react'
+import { FileText, Sparkles } from 'lucide-react'
+import { DownloadPayslipButton } from '@/components/download-payslip-button'
+import { PayslipsAIHelper } from '@/components/payslips-ai-helper'
 
 export default async function PayslipsPage() {
   const supabase = await createClient()
@@ -56,6 +57,9 @@ export default async function PayslipsPage() {
         </p>
       </div>
 
+      {/* AI Helper Info */}
+      <PayslipsAIHelper employeeId={employee.id} />
+
       <Card>
         <CardHeader>
           <CardTitle>Payment History</CardTitle>
@@ -80,23 +84,23 @@ export default async function PayslipsPage() {
                         {new Date(payslip.payrolls?.pay_period_start || payslip.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Net Pay: ${payslip.net_pay.toFixed(2)}
+                        Net Pay: ₹{payslip.net_pay.toLocaleString()}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right mr-4">
                       <p className="text-sm font-medium">
-                        ${payslip.gross_pay.toFixed(2)}
+                        ₹{payslip.gross_pay.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Gross Pay
                       </p>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
+                    <DownloadPayslipButton 
+                      payslipId={payslip.id}
+                      payPeriodStart={payslip.payrolls?.pay_period_start}
+                    />
                   </div>
                 </div>
               ))}

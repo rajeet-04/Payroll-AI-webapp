@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { RunPayrollDialog } from '@/components/run-payroll-dialog'
+import { PayrollStatusEditor } from '@/components/payroll-status-editor'
+import { ViewPayrollDetailsDialog } from '@/components/view-payroll-details-dialog'
 
 export default async function PayrollPage() {
   const supabase = await createClient()
@@ -40,10 +41,7 @@ export default async function PayrollPage() {
             Manage and process payroll runs
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Run Payroll
-        </Button>
+        <RunPayrollDialog companyId={profile.company_id!} userId={user.id} />
       </div>
 
       <Card>
@@ -71,18 +69,11 @@ export default async function PayrollPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                      payroll.status === 'paid'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                        : payroll.status === 'processed'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
-                    }`}>
-                      {payroll.status}
-                    </span>
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
+                    <PayrollStatusEditor 
+                      payrollId={payroll.id} 
+                      currentStatus={payroll.status}
+                    />
+                    <ViewPayrollDetailsDialog payroll={payroll} />
                   </div>
                 </div>
               ))}
@@ -92,10 +83,7 @@ export default async function PayrollPage() {
               <p className="text-muted-foreground mb-4">
                 No payroll runs yet. Create your first payroll run.
               </p>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Run Payroll
-              </Button>
+              <RunPayrollDialog companyId={profile.company_id!} userId={user.id} />
             </div>
           )}
         </CardContent>

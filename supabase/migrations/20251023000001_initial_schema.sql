@@ -26,8 +26,9 @@ CREATE TABLE profiles (
 -- Create salary_structures table
 CREATE TABLE salary_structures (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
+    name TEXT,
     base_pay NUMERIC(10, 2) NOT NULL,
     allowances JSONB DEFAULT '{}',
     deductions_fixed JSONB DEFAULT '{}',
@@ -112,6 +113,7 @@ CREATE TABLE leave_requests (
     leave_period_id UUID NOT NULL REFERENCES leave_periods(id) ON DELETE CASCADE,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    days_requested INTEGER DEFAULT 0,
     reason TEXT,
     leave_type TEXT NOT NULL DEFAULT 'paid',
     status TEXT NOT NULL DEFAULT 'pending',
@@ -125,6 +127,7 @@ CREATE TABLE leave_requests (
 CREATE INDEX idx_profiles_company ON profiles(company_id);
 CREATE INDEX idx_employees_profile ON employees(profile_id);
 CREATE INDEX idx_employees_company ON employees(company_id);
+CREATE INDEX idx_salary_structures_employee ON salary_structures(employee_id);
 CREATE INDEX idx_payrolls_company ON payrolls(company_id);
 CREATE INDEX idx_payslips_employee ON payslips(employee_id);
 CREATE INDEX idx_payslips_payroll ON payslips(payroll_id);
