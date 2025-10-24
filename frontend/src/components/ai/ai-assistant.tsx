@@ -11,8 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
-import { Sparkles, Send, Loader2, X } from "lucide-react"
+import { Sparkles, Send, Loader2, X, Copy, Check } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import systemInstructions from "@/config/system-instructions.json"
 
 interface Message {
   role: "user" | "assistant"
@@ -27,6 +28,164 @@ interface AIAssistantProps {
   suggestedPrompts?: string[]
   title?: string
   description?: string
+}
+
+// Helper to format message content with special tags
+function formatMessageContent(content: string): React.ReactNode {
+  const parts: React.ReactNode[] = []
+
+  // Process the content in order: code blocks, inline code, bold, headers, line breaks
+  const lines = content.split('\n')
+  
+  lines.forEach((line, lineIndex) => {
+    // Check for headers (##)
+    const headerMatch = line.match(/^##\s+(.+)$/)
+    if (headerMatch) {
+      parts.push(
+        <h3 key={`header-${lineIndex}`} className="text-base font-semibold mt-3 mb-2">
+          {headerMatch[1]}
+        </h3>
+      )
+      return
+    }
+
+    // Check for code blocks (```)
+    if (line.trim().startsWith('```')) {
+      const codeBlockMatch = content.substring(content.indexOf(line)).match(/```(\w+)?\n([\s\S]*?)```/)
+      if (codeBlockMatch) {
+        const [, language, code] = codeBlockMatch
+        parts.push(
+          <CodeBlock key={`code-${lineIndex}`} code={code.trim()} language={language} />
+        )
+        return
+      }
+    }
+
+    // Process inline formatting within the line
+    const processedLine = processInlineFormatting(line, `line-${lineIndex}`)
+    parts.push(
+      <span key={`line-${lineIndex}`}>
+        {processedLine}
+        {lineIndex < lines.length - 1 && <br />}
+      </span>
+    )
+  })
+
+  return <div className="space-y-1">{parts}</div>
+}
+
+// Process inline formatting (bold, inline code, etc.)
+function processInlineFormatting(text: string, baseKey: string): React.ReactNode {
+  const parts: React.ReactNode[] = []
+  let remaining = text
+  let key = 0
+
+  while (remaining.length > 0) {
+    // Check for inline code (`code`)
+    const inlineCodeMatch = remaining.match(/`([^`]+)`/)
+    if (inlineCodeMatch) {
+      const beforeCode = remaining.substring(0, inlineCodeMatch.index)
+      if (beforeCode) {
+        parts.push(...processBoldAndText(beforeCode, `${baseKey}-${key++}`))
+      }
+      parts.push(
+        <code key={`${baseKey}-code-${key++}`} className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">
+          {inlineCodeMatch[1]}
+        </code>
+      )
+      remaining = remaining.substring(inlineCodeMatch.index! + inlineCodeMatch[0].length)
+      continue
+    }
+
+    // No more inline code, process bold and remaining text
+    parts.push(...processBoldAndText(remaining, `${baseKey}-${key++}`))
+    break
+  }
+
+  return <>{parts}</>
+}
+
+// Process bold formatting
+function processBoldAndText(text: string, baseKey: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  let remaining = text
+  let key = 0
+
+  while (remaining.length > 0) {
+    // Check for bold (**text**)
+    const boldMatch = remaining.match(/\*\*([^*]+)\*\*/)
+    if (boldMatch) {
+      const beforeBold = remaining.substring(0, boldMatch.index)
+      if (beforeBold) {
+        parts.push(<span key={`${baseKey}-text-${key++}`}>{beforeBold}</span>)
+      }
+      parts.push(
+        <strong key={`${baseKey}-bold-${key++}`} className="font-semibold">
+          {boldMatch[1]}
+        </strong>
+      )
+      remaining = remaining.substring(boldMatch.index! + boldMatch[0].length)
+      continue
+    }
+
+    // No more bold, add remaining text
+    if (remaining) {
+      parts.push(<span key={`${baseKey}-text-${key++}`}>{remaining}</span>)
+    }
+    break
+  }
+
+  return parts
+}
+
+// Code block component with copy functionality
+function CodeBlock({ code, language }: { code: string; language?: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy code:', err)
+    }
+  }
+
+  return (
+    <div className="relative group my-3">
+      <div className="absolute right-2 top-2 z-10">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopy}
+          className="h-8 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 mr-1" />
+              Copied!
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3 mr-1" />
+              Copy
+            </>
+          )}
+        </Button>
+      </div>
+      <pre className="bg-muted/50 border rounded-lg p-4 overflow-x-auto">
+        <code className="text-sm font-mono block">
+          {code}
+        </code>
+      </pre>
+      {language && (
+        <div className="absolute left-3 top-2 text-xs text-muted-foreground">
+          {language}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function AIAssistant({
@@ -84,42 +243,14 @@ export function AIAssistant({
         content: msg.content,
       }))
 
-      // Use streaming for payslip_explain intent if available
-      if (intent === "payslip_explain" && context?.payslip_id) {
-        await streamPayslipExplanation(query, session.access_token, chatHistory)
-      } else {
-        // Use regular chat endpoint for other intents
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const response = await fetch(`${apiUrl}/api/v1/chat/chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            query,
-            context,
-            intent,
-            chat_history: chatHistory,
-          }),
-        })
+      // Get system instruction for the intent
+      const systemInstruction = intent 
+        ? systemInstructions[intent as keyof typeof systemInstructions] || systemInstructions.default
+        : systemInstructions.default
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            detail: "Failed to get response",
-          }))
-          throw new Error(errorData.detail || "Failed to get AI response")
-        }
+      // Use streaming for better UX
+      await streamResponse(query, session.access_token, chatHistory, systemInstruction)
 
-        const data = await response.json()
-
-        // Add assistant message
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: data.response,
-        }
-        setMessages((prev) => [...prev, assistantMessage])
-      }
     } catch (err) {
       console.error("AI assistant error:", err)
       const errorMessage =
@@ -139,25 +270,35 @@ export function AIAssistant({
     }
   }
 
-  const streamPayslipExplanation = async (
+  const streamResponse = async (
     query: string,
     accessToken: string,
-    _chatHistory: { role: string; content: string }[]
+    chatHistory: { role: string; content: string }[],
+    systemInstruction: string
   ) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      
+      // Build request body based on whether we have a payslip context
+      const requestBody: Record<string, unknown> = {
+        intent: intent || "default",
+        query,
+        system_instruction: systemInstruction,
+        chat_history: chatHistory,  // Include chat history for multi-turn conversations
+      }
+
+      // Add payslip_id if available for payslip_explain intent
+      if (intent === "payslip_explain" && context?.payslip_id) {
+        requestBody.payslip_id = context.payslip_id
+      }
+
       const response = await fetch(`${apiUrl}/api/v1/chat/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          intent: "payslip_explain",
-          payslip_id: context?.payslip_id,
-          query,
-          system_instruction: "You are a helpful payroll assistant for Indian employees. Provide clear explanations with INR formatting and tax-saving suggestions.",
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
@@ -183,48 +324,45 @@ export function AIAssistant({
 
         if (value) {
           const chunk = decoder.decode(value, { stream: true })
-          
-          // Parse SSE format: "data: <payload>\n\n"
-          const lines = chunk.split(/\n\n/).filter(Boolean)
-          
-          for (const line of lines) {
-            const dataMatch = line.match(/^data:\s*(.*)$/)
-            if (dataMatch) {
-              const payload = dataMatch[1]
-              
-              // Try to parse as JSON (for metadata or structured chunks)
-              try {
-                const parsed = JSON.parse(payload)
-                if (parsed && parsed.type === "metadata") {
-                  // Metadata chunk - skip or use for UI hints
-                  console.log("Stream metadata:", parsed)
-                } else if (parsed && parsed.error) {
-                  throw new Error(parsed.error)
-                } else {
-                  // Structured JSON chunk - append as text
-                  streamedContent += JSON.stringify(parsed) + " "
-                }
-              } catch {
-                // Plain text chunk
-                streamedContent += payload
-              }
 
-              // Update the message in real-time
-              setMessages((prev) => {
-                const updated = [...prev]
-                if (updated[messageIndex]) {
-                  updated[messageIndex] = {
-                    role: "assistant",
-                    content: streamedContent,
+          // Parse SSE format: "data: <payload>\n\n"
+          const lines = chunk.split(/\n/)
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = line.substring(6) // Remove "data: " prefix
+              
+              if (payload.trim()) {
+                // Try to parse as JSON (for error messages)
+                try {
+                  const parsed = JSON.parse(payload)
+                  if (parsed.error) {
+                    throw new Error(parsed.error)
                   }
-                } else {
-                  updated.push({
-                    role: "assistant",
-                    content: streamedContent,
-                  })
+                  // If it's a valid JSON but not an error, treat as text
+                  streamedContent += JSON.stringify(parsed)
+                } catch {
+                  // Plain text chunk - append directly
+                  streamedContent += payload
                 }
-                return updated
-              })
+
+                // Update the message in real-time
+                setMessages((prev) => {
+                  const updated = [...prev]
+                  if (updated[messageIndex]) {
+                    updated[messageIndex] = {
+                      role: "assistant",
+                      content: streamedContent,
+                    }
+                  } else {
+                    updated.push({
+                      role: "assistant",
+                      content: streamedContent,
+                    })
+                  }
+                  return updated
+                })
+              }
             }
           }
         }
@@ -234,19 +372,16 @@ export function AIAssistant({
       if (streamedContent) {
         setMessages((prev) => {
           const updated = [...prev]
-          const existing = updated.find((m, i) => i === messageIndex)
-          if (!existing || existing.content !== streamedContent) {
-            if (updated[messageIndex]) {
-              updated[messageIndex] = {
-                role: "assistant",
-                content: streamedContent,
-              }
-            } else {
-              updated.push({
-                role: "assistant",
-                content: streamedContent,
-              })
+          if (updated[messageIndex]) {
+            updated[messageIndex] = {
+              role: "assistant",
+              content: streamedContent,
             }
+          } else {
+            updated.push({
+              role: "assistant",
+              content: streamedContent,
+            })
           }
           return updated
         })
@@ -314,8 +449,12 @@ export function AIAssistant({
                     : "bg-muted"
                 }`}
               >
-                <div className="text-sm whitespace-pre-wrap">
-                  {message.content}
+                <div className="text-sm">
+                  {message.role === "user" ? (
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                  ) : (
+                    formatMessageContent(message.content)
+                  )}
                 </div>
               </Card>
             </div>

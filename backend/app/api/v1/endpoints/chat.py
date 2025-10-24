@@ -112,12 +112,15 @@ async def chat_stream(
     
     sanitized_context = gemini_service.sanitize_and_mask_context(enriched_context) if enriched_context else None
 
+    # Build conversation context with chat history
+    conversation_context = _build_conversation_context(request.chat_history, sanitized_context)
+
     async def event_generator() -> AsyncGenerator[bytes, None]:
         try:
             # Stream chunks from the service
             async for chunk in gemini_service.generate_response_chunks(
                 query=request.query or "Please explain the provided payslip",
-                context=sanitized_context,
+                context=conversation_context,
                 intent=request.intent,
                 system_instruction=request.system_instruction
             ):

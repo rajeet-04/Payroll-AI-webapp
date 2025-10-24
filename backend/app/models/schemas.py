@@ -50,6 +50,7 @@ class PayslipExplainRequest(BaseModel):
     payslip_id: Optional[str] = Field(None, description="UUID of the payslip to explain")
     query: Optional[str] = Field("Please explain the provided payslip", description="Query to send to AI")
     system_instruction: Optional[str] = Field(None, description="Optional custom system instruction for the AI")
+    chat_history: Optional[List[Dict[str, str]]] = Field(None, description="Previous conversation messages for context continuity")
 
 
 class PayslipExplainResponse(BaseModel):
