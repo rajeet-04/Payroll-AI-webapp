@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-// import { Button } from '@/components/ui/button'
 import { LeaveActionButtons } from '@/components/leave-action-buttons'
 import { CreateLeavePeriodDialog } from '@/components/create-leave-period-dialog'
 

@@ -54,3 +54,9 @@ body {
   color: var(--foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
 }
+
+/* Liquid Glass Effect */
+.backdrop-blur-md {
+  -webkit-backdrop-filter: blur(10px); /* Safari support */
+  backdrop-filter: blur(10px);
+}

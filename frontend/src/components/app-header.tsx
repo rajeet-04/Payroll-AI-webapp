@@ -55,7 +55,7 @@ export function AppHeader({ user, profile }: AppHeaderProps) {
               <User className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56 backdrop-blur-md bg-white/70 dark:bg-gray-800/70">
             <DropdownMenuLabel>
               <div>
                 <p className="font-medium">{profile?.full_name || 'User'}</p>

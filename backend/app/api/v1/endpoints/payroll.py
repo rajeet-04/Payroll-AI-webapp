@@ -46,11 +46,6 @@ async def process_payroll(
 ):
     """
     Process payroll for all active employees
-    
-    - Requires admin authentication
-    - Fetches employees and their salary structures
-    - Calculates pay including leave deductions
-    - Creates payroll and payslip records
     """
     try:
         supabase = get_supabase_admin_client()

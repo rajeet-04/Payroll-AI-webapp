@@ -129,7 +129,7 @@ export function RequestLeaveDialog({ employeeId, canRequest = true }: RequestLea
             Request Leave
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] backdrop-blur-md bg-white/70 dark:bg-gray-800/70">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>Request Leave</DialogTitle>
