@@ -7,6 +7,6 @@ supabase==2.9.1
 google-generativeai==0.8.3
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.12
+python-multipart==0.0.18
 reportlab==4.2.5
 google-genai
